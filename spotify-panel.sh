@@ -14,8 +14,14 @@ if pidof spotify &> /dev/null; then
   readonly ARTIST=$(bash "${DIR}/spotify.sh" artist | sed 's/&/&#38;/g')
   readonly TITLE=$(bash "${DIR}/spotify.sh" title | sed 's/&/&#38;/g')
   readonly ALBUM=$(bash "${DIR}/spotify.sh" album | sed 's/&/&#38;/g')
-  readonly WINDOW_ID=$(wmctrl -l | grep "${ARTIST_TITLE}" | awk '{print $1}')
   ARTIST_TITLE=$(echo "${ARTIST} - ${TITLE}")
+  WINDOW_ID=$(wmctrl -l | grep "${ARTIST_TITLE}" | awk '{print $1}')
+
+  #If Spotify doesnt have now playing information fallback to literal Spotify
+  if [[ -z $WINDOW_ID ]]; then
+      WINDOW_ID=$(wmctrl -l | grep "Spotify" | awk '{print $1}')
+  fi
+  readonly WINDOW_ID
 
   # Proper length handling
   readonly MAX_CHARS=52
@@ -26,41 +32,40 @@ if pidof spotify &> /dev/null; then
 
   # Panel
   if [[ $(file -b "${ICON}") =~ PNG|SVG ]]; then
-    INFO="<img>${ICON}</img>"
-    INFO+="<txt>"
-    INFO+="${ARTIST_TITLE}"
-    INFO+="</txt>"
+    INFO="<txt>${ARTIST_TITLE}</txt>"
+    INFO+="<img>${ICON}</img>"
   else
-    INFO="<txt>"
-    INFO+="${ARTIST_TITLE}"
-    INFO+="</txt>"
+    INFO="<txt>${ARTIST_TITLE}</txt>"
   fi
 
-  INFO+="<click>xdotool windowactivate ${WINDOW_ID}</click>"
+  #Switch from activating the window to toggling the window
+  INFO+="<click>"
+  INFO+="xdotool windowstate --toggle HIDDEN ${WINDOW_ID} windowstate --toggle SKIP_TASKBAR ${WINDOW_ID}"
+  INFO+='if [[ -n "$(xwininfo -id $WINDOW_ID | grep '\''IsViewable'\'')" ]]; then xdotool windowactivate --sync ${WINDOW_ID}; fi'
+  INFO+="</click>"
 
   # Tooltip
   MORE_INFO="<tool>"
-  MORE_INFO+="Artist ....: ${ARTIST}\n"
-  MORE_INFO+="Album ..: ${ALBUM}\n"
-  MORE_INFO+="Title ......: ${TITLE}"
+  MORE_INFO+="Artist     : ${ARTIST}\n"
+  MORE_INFO+="Album   : ${ALBUM}\n"
+  MORE_INFO+="Title        : ${TITLE}"
   MORE_INFO+="</tool>"
 else
   # Panel
   if [[ $(file -b "${ICON}") =~ PNG|SVG ]]; then
-    INFO="<img>${ICON}</img>"
-    INFO+="<txt>"
-    INFO+="Offline"
-    INFO+="</txt>"
+    INFO="<txt>Offline</txt>"
+    INFO+="<img>${ICON}</img>"
   else
-    INFO="<txt>"
-    INFO+="Offline"
-    INFO+="</txt>"
+    INFO="<txt>Offline</txt>"
   fi
 
+  INFO+="<click>"
+  INFO+="$(which spotify) &;"
+  INFO+="xdotool search --sync --all --onlyvisible --name --classname Spotify windowsize --sync 25% 25% windowmove --sync 0 0 windowstate --add MAXIMIZED_VERT --add MAXIMIZED_HORZ"
+  INFO+="</click>"
+
   # Tooltip
-  MORE_INFO="<tool>"
-  MORE_INFO+="Spotify is not running"
-  MORE_INFO+="</tool>"
+  MORE_INFO="<tool>Spotify is not running. Click the icon to start it!</tool>"
 fi
 
 # Panel Print
